@@ -7,7 +7,8 @@ description: 현재 변경분(diff)을 code-reviewer 에이전트로 리뷰한�
 
 대상: $ARGUMENTS (비어 있으면 워킹 트리 변경분 + 마지막 커밋)
 
-1. code-reviewer 에이전트에 리뷰 범위를 전달해 위임한다.
+1. code-reviewer 에이전트에 리뷰 범위를 전달해 위임한다
+   (run_in_background로 실행하고 즉시 턴을 종료 — 메인 세션은 사용자가 계속 쓸 수 있게 한다).
 2. 결과를 critical / warning / suggestion 으로 분류해 보고한다.
    각 항목에 파일:라인, 근거, 수정 방향을 포함한다.
 3. critical이 있으면 수정안을 제시하되, 적용은 사용자 확인 후에만 한다.
