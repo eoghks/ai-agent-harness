@@ -12,7 +12,7 @@
  * 프롬프트 커스터마이징: site-custom-doc-prompt.md 수정
  */
 
-const { execSync, spawnSync } = require('child_process');
+const { execSync, execFileSync, spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 
@@ -87,14 +87,15 @@ process.stdin.on('end', () => {
       try { origHead = run('git rev-parse ORIG_HEAD'); } catch (_) { return exit(); }
 
       changedFiles = sortByExtPriority(
-        run(`git diff ${origHead} HEAD --name-only`)
+        runFile(['diff', origHead, 'HEAD', '--name-only'])
           .split('\n').map(f => f.trim())
           .filter(f => f && /\.(java|js|ts|jsx|tsx|vue|xml|yml|yaml|sql)$/.test(f))
       );
 
       diffs = changedFiles.map(f => {
         try {
-          const diff = execSync(`git diff ${origHead} HEAD -- "${f}"`, {
+          // 셸 미경유(execFileSync)로 파일경로가 명령으로 해석되지 않게 한다
+          const diff = execFileSync('git', ['diff', origHead, 'HEAD', '--', f], {
             encoding: 'utf8', maxBuffer: 1024 * 1024 * 5,
             stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, ...GIT_ENV }
           });
@@ -102,7 +103,7 @@ process.stdin.on('end', () => {
         } catch (_) { return { file: f, diff: '' }; }
       });
 
-      const mergedMsgs = run(`git log ${origHead}..HEAD --pretty=format:%s`)
+      const mergedMsgs = runFile(['log', `${origHead}..HEAD`, '--pretty=format:%s'])
         .split('\n').filter(Boolean);
       if (mergedMsgs.length) {
         commitBody = `병합된 커밋:\n${mergedMsgs.map(m => `- ${m}`).join('\n')}`;
@@ -160,10 +161,7 @@ process.stdin.on('end', () => {
 
     updateOverview(docDir, siteName, branch);
 
-    try {
-      execSync(`git add "${docFile}"`, { stdio: 'ignore' });
-      execSync(`git add "${path.join(docDir, 'OVERVIEW.md')}"`, { stdio: 'ignore' });
-    } catch (_) {}
+    autoCommitDocs(docFile, path.join(docDir, 'OVERVIEW.md'), siteName, effectiveScope);
 
   } catch (e) {
     err(e.message);
@@ -448,6 +446,60 @@ function run(cmd) {
   }).trim();
 }
 
+// 셸 미경유 git 실행 — 인자배열로 전달해 변수가 명령으로 해석되지 않게 한다
+function runFile(args) {
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'ignore'],
+    env: { ...process.env, ...GIT_ENV }
+  }).trim();
+}
+
+// ─── 문서 자동 커밋 (경로 한정) ──────────────────────────────────────────────
+// 생성·갱신된 문서 두 개만 경로 한정으로 add 후 직접 커밋한다.
+// - 셸 미경유(execFileSync)라 siteName/effectiveScope/경로의 $(...)·백틱·;·개행이 명령으로 해석되지 않는다.
+// - `git add -- <경로>`로 두 문서만 스테이징하고 `git commit -- <경로>`로 파일 지정 커밋하므로
+//   사용자가 다른 곳에 해둔 스테이징 상태를 훼손하지 않는다. (add 없이 commit만 하면 신규
+//   untracked 문서를 pathspec이 잡지 못해 커밋 전체가 실패하므로 add 단계가 필수다.)
+// - 이 커밋은 Node 자식 프로세스로 실행되어 Bash/PowerShell 도구 이벤트를 만들지 않으므로
+//   PostToolUse 훅(매처: Bash|PowerShell)을 재발동시키지 않는다.
+function autoCommitDocs(docFile, overviewFile, siteName, effectiveScope) {
+  const msgScope     = effectiveScope ? `(${effectiveScope})` : '';
+  const docCommitMsg = `docs${msgScope}: [${siteName}] 커스텀 문서 자동 갱신`;
+  // 존재하는 문서만 대상으로 한다(방어적). 신규(untracked) 문서는 commit 직전 add가 없으면
+  // `git commit -- <pathspec>`가 잡지 못해 커밋 전체가 실패하므로 경로 한정 add를 먼저 한다.
+  const targets = [docFile, overviewFile].filter(f => f && fs.existsSync(f));
+  if (!targets.length) {
+    log('문서 자동 커밋 생략: 커밋 대상 문서 없음');
+    return;
+  }
+  try {
+    // stderr를 파이프로 받아 실패 사유를 구분 로깅할 수 있게 한다
+    // 경로 한정 add — 사용자가 다른 곳에 해둔 스테이징은 건드리지 않는다(M-2 의도 유지)
+    execFileSync('git', ['add', '--', ...targets], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...GIT_ENV }
+    });
+    execFileSync('git', ['commit', '-m', docCommitMsg, '--', ...targets], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...GIT_ENV }
+    });
+    log(`문서 자동 커밋: ${docCommitMsg}`);
+  } catch (e) {
+    // 변경 없음(nothing to commit)·detached HEAD 등 정상적으로 커밋 안 되는 경우와 진짜 오류를 구분해 로깅
+    const detail = `${e.stdout || ''}\n${e.stderr || ''}`.trim() || (e.message || '');
+    if (/nothing to commit|no changes added|변경 사항 없음/.test(detail)) {
+      log('문서 자동 커밋 생략: 커밋할 문서 변경 없음');
+    } else if (/HEAD detached|detached HEAD|분리된 HEAD/.test(detail)) {
+      log('문서 자동 커밋 생략: detached HEAD 상태');
+    } else {
+      err(`문서 자동 커밋 실패: ${detail}`);
+    }
+  }
+}
+
 // java/js/ts 우선 → xml/yml은 후순위 (diff 잘릴 경우 핵심 파일 보존)
 const EXT_PRIORITY = ['.java', '.js', '.ts', '.tsx', '.jsx', '.vue', '.sql', '.xml', '.yml', '.yaml'];
 function sortByExtPriority(files) {
@@ -461,7 +513,8 @@ function sortByExtPriority(files) {
 function collectDiffs(files) {
   return files.map(f => {
     try {
-      const diff = execSync(`git show HEAD -- "${f}"`, {
+      // 셸 미경유(execFileSync)로 파일경로가 명령으로 해석되지 않게 한다
+      const diff = execFileSync('git', ['show', 'HEAD', '--', f], {
         encoding: 'utf8',
         maxBuffer: 1024 * 1024 * 5,
         stdio: ['pipe', 'pipe', 'ignore'],
