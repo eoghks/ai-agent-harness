@@ -29,6 +29,8 @@
 - `commit` — 브랜치 확인 후 Conventional Commits 커밋. 보호 브랜치면 작업 브랜치 생성을 먼저 제안.
 - `todo` — 개인 위키 `TODO.md`의 할 일 추가·조회·완료 관리.
 - `reports` — 백그라운드 에이전트 보고서 열람·읽음 처리·삭제·정리.
+- `wiki-init` — 위키(옵시디언 vault) 첫 구성. 작업로그·에이전트보고·TODO 골격을 멱등 생성.
+- `worklog` — 위키 작업로그 조회. 최근 항목·특정 월·키워드 검색(읽기 전용).
 
 ### hooks — 훅
 - `branch-gate.js` — PreToolUse(Bash/PowerShell). 보호 브랜치 대상 commit/push/merge/rebase 시 확인을 요구한다.
