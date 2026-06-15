@@ -30,3 +30,15 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 - 질문 (있을 때만): 메인 세션이 사용자에게 확인해야 할 것
 
 "될 것 같다" 금지 — 실행해서 확인한 것만 보고한다.
+
+## 보고서 저장 규약
+- 위 보고 형식의 전문을 다음 위치에 파일로 저장한다: `<사용자 홈>\wiki\에이전트보고\`
+  (위키 폴더가 없으면 `<사용자 홈>\.claude\reports\`). 파일명은 `YYYY-MM-DD_HHmm_<작업명-kebab>.md`.
+  절대시각이 지시에 없으면 메인 세션이 채워준 값을 쓴다.
+- 파일 맨 앞에 frontmatter를 둔다(YAML): title(작업명), agent: implementer, date(절대일시),
+  project(작업 대상 경로/이름), status(완료/차단/needs-input), read: false, summary(한 줄).
+  frontmatter 아래에 보고 전문을 그대로 적는다.
+- 최종 반환은 **한 줄 요약 + 저장 경로**만 한다. 단, **질문 복귀(needs-input)·차단이면** status에
+  그대로 적고 질문 목록·차단 사유를 반환에 함께 포함한다 — 메인 세션이 즉시 채팅에 표출하도록.
+- **저장에 실패하면 보고 전문을 그대로 반환한다** — 메인 세션이 폴백 저장한다. 보고서 파일 쓰기는
+  Write 도구만 사용한다(UTF-8 보장, 셸 리다이렉트 금지).

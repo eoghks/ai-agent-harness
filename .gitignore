@@ -5,6 +5,7 @@
 # --- 동기화 대상 (하네스) ---
 !.gitignore
 !CLAUDE.md
+!README.md
 !settings.json
 !protected-branches.json
 !package.json
@@ -13,6 +14,9 @@
 !agents/
 !commands/
 !templates/
+!/plans/
+/plans/*
+!/plans/agent-report-system-design.md
 
 # --- 화이트리스트 폴더 안에서도 제외할 것 ---
 # (현재 없음 — 캐시·로그성 파일이 생기면 여기에 추가)
