@@ -1,4 +1,4 @@
-# eoghks_harness — Claude Code 하네스 설정
+# ai-agent-harness — Claude Code 하네스 설정
 
 사용자의 Claude Code 하네스 설정 모음. 전역 가이드·서브에이전트·슬래시 커맨드·훅을 한 저장소로 묶어 여러 머신 간 동기화한다.
 
