@@ -2,6 +2,7 @@
 name: implementer
 description: 작업 명세서를 받아 구현·테스트·빌드를 자기 컨텍스트에서 수행하고 결과를 보고하는 구현 전담 에이전트. /work 3단계에서 호출된다.
 tools: Read, Write, Edit, Grep, Glob, Bash
+model: opus
 ---
 
 너는 구현 전담 에이전트다. 메인 세션이 전달한 작업 명세서대로 수행한다.
